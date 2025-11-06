@@ -36,6 +36,10 @@
     .actions{display:flex;gap:8px;flex-wrap:wrap}
     .topline{display:flex;justify-content:space-between;align-items:center;gap:8px}
     .muted{color:var(--muted);font-size:0.9rem}
+    body.dark .submission-section {
+        background: var(--card);
+        color: var(--text);
+    }
     footer{color:var(--muted);text-align:center;margin:10px 0}
   </style>
 </head>
@@ -70,7 +74,7 @@
           </div>
         </div>
 
-        <div class="grid" style="margin-top:12px">
+        <div class="grid" style="margin-top:12px; display:grid; grid-template-columns: repeat(3, 1fr); gap:12px;">
           <div>
             <label for="rpm">Engine Speed (RPM)</label>
             <input id="rpm" type="number" placeholder="1500" value="1500" />
@@ -92,7 +96,7 @@
             <input id="t0" type="number" value="298" />
           </div>
           <div>
-            <label for="inj">Injection Timing (°CA) — optional</label>
+            <label for="inj">Injection Timing (°CA)</label>
             <input id="inj" type="number" placeholder="0" />
           </div>
         </div>
@@ -124,6 +128,19 @@
       </div>
 
       <footer>Built for biodiesel exergy studies • Saves chart image into PDF • Use responsibly</footer>
+        <!-- Submission Details Section -->
+        <div class="card submission-section">
+        <h3 style="margin:0 0 10px 0;font-weight:700;text-decoration:underline;">
+            Submitted by:
+        </h3>
+        <p style="margin:4px 0;">Abhinav Jha&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 2024/AE/002</p>
+        <p style="margin:4px 0;">Hussain Abbas Zaidi&nbsp;: 2024/AE/030</p>
+        <p style="margin:4px 0;">Kunal Tegwal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 2024/AE/034</p>
+
+        <h3 style="margin:18px 0 6px 0;font-weight:700;">Submitted to:</h3>
+        <p style="margin:4px 0;font-weight:700;">Prof. R. S. Mishra</p>
+        <p style="margin:4px 0;">Department of Mechanical Engineering</p>
+        </div>
     </main>
   </div>
 
