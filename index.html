@@ -174,7 +174,7 @@
     // brake thermal efficiency %
     const BTE = E_f > 0 ? (BP / E_f) * 100 : 0;
     // exergy fuel input (approx)
-    const Ex_fuel = 1.04 * E_f; // kW
+    const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
     // exergy efficiency %
     const Ex_eff = Ex_fuel > 0 ? (BP / Ex_fuel) * 100 : 0;
     // BSFC kg/kWh -> (kg/s) / kW * 3600
