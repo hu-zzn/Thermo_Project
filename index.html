@@ -162,27 +162,33 @@
   let effChart = new Chart(ctx, { type:'bar', data: chartData, options: chartOptions });
 
   // helper functions
-  function calcMetrics({blend,rpm,torque,mFuel,T_exh,T0}) {
-    // Validate
-    if (!rpm || !torque || !mFuel || mFuel <= 0) throw new Error('RPM, torque and fuel flow must be positive numbers.');
+  function calcMetrics({blend, rpm, torque, mFuel, T_exh, T0}) {
+  if (!rpm || !torque || !mFuel || mFuel <= 0) throw new Error('RPM, torque, and fuel flow must be valid.');
 
-    const LHV = blendLHV[blend] || blendLHV[0];
-    // Brake power kW
-    const BP = (2 * Math.PI * rpm * torque) / 60 / 1000; // kW
-    // Fuel energy input kW
-    const E_f = (mFuel * LHV) / 1000; // kW
-    // brake thermal efficiency %
-    const BTE = E_f > 0 ? (BP / E_f) * 100 : 0;
-    // exergy fuel input (approx)
-    const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
-    // exergy efficiency %
-    const Ex_eff = Ex_fuel > 0 ? (BP / Ex_fuel) * 100 : 0;
-    // BSFC kg/kWh -> (kg/s) / kW * 3600
-    const BSFC_kg_per_kWh = BP > 0 ? (mFuel / BP) * 3600 : Infinity;
-    const BSFC_g_per_kWh = isFinite(BSFC_kg_per_kWh) ? BSFC_kg_per_kWh * 1000 : Infinity;
+  const LHV = blendLHV[blend] || blendLHV[0]; // kJ/kg
 
-    return {BP, E_f, BTE, Ex_fuel, Ex_eff, BSFC_kg_per_kWh, BSFC_g_per_kWh, LHV};
-  }
+  // 1. Brake Power (kW)
+  const BP = (2 * Math.PI * rpm * torque) / 60 / 1000; // in kW
+
+  // 2. Fuel Energy Input (kW)
+  const E_f = (mFuel * LHV) / 1000;
+
+  // 3. Brake Thermal Efficiency (%)
+  const BTE = (BP / E_f) * 100;
+
+  // 4. Chemical Exergy Input (kW) ~1.04 × LHV
+  const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
+
+  // 5. Exergy Efficiency (%)
+  const Ex_eff = (BP / Ex_fuel) * 100;
+
+  // 6. BSFC
+  const BSFC_kg_per_kWh = BP > 0 ? (mFuel / BP) * 3600 : Infinity;
+  const BSFC_g_per_kWh = BSFC_kg_per_kWh * 1000;
+
+  return { BP, E_f, BTE, Ex_fuel, Ex_eff, BSFC_g_per_kWh };
+}
+
 
   function addRowToTable(index, blend, rpm, torque, mFuel, BTE, Ex_eff, BSFC_g) {
     const tbody = document.querySelector('#dataTable tbody');
