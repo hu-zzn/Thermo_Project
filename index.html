@@ -174,13 +174,13 @@
   const E_f = (mFuel * LHV) / 1000;
 
   // 3. Brake Thermal Efficiency (%)
-  const BTE = (BP / E_f) * 100;
+  const BTE = (BP / (E_f * 10000)) * 100;
 
   // 4. Chemical Exergy Input (kW) ~1.04 × LHV
   const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
 
   // 5. Exergy Efficiency (%)
-  const Ex_eff = (BP / Ex_fuel) * 100;
+  const Ex_eff = (BP / (Ex_fuel*10000)) * 100;
 
   // 6. BSFC
   const BSFC_kg_per_kWh = BP > 0 ? (mFuel / BP) * 3600 : Infinity;
