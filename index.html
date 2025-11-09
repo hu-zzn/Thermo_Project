@@ -74,33 +74,22 @@
           </div>
         </div>
 
-        <div class="grid" style="margin-top:12px; display:grid; grid-template-columns: repeat(3, 1fr); gap:12px;">
-          <div>
-            <label for="rpm">Engine Speed (RPM)</label>
-            <input id="rpm" type="number" placeholder="1500" value="1500" />
-          </div>
-          <div>
-            <label for="torque">Torque (N·m)</label>
-            <input id="torque" type="number" placeholder="20" value="20" />
-          </div>
-          <div>
-            <label for="fuel">Fuel Flow (kg/s)</label>
-            <input id="fuel" type="number" placeholder="0.000021" step="0.000001" value="0.000021" />
-          </div>
-          <div>
-            <label for="texh">Exhaust Temp (K)</label>
-            <input id="texh" type="number" value="673" />
-          </div>
-          <div>
-            <label for="t0">Ambient Temp (K)</label>
-            <input id="t0" type="number" value="298" />
-          </div>
-          <div>
-            <label for="inj">Injection Timing (°CA)</label>
-            <input id="inj" type="number" placeholder="0" />
-          </div>
+        <div class="grid" style="margin-top:12px;">
+          <div><label for="rpm">Engine Speed (RPM)</label><input id="rpm" type="number" value="1500" /></div>
+          <div><label for="torque">Torque (N·m)</label><input id="torque" type="number" value="20" /></div>
+          <div><label for="fuel">Fuel Flow (kg/s)</label><input id="fuel" type="number" value="0.000021" step="0.000001" /></div>
+          <div><label for="texh">Exhaust Temp (K)</label><input id="texh" type="number" value="673" /></div>
+          <div><label for="t0">Ambient Temp (K)</label><input id="t0" type="number" value="298" /></div>
+          <div><label for="inj">Injection Timing (°CA)</label><input id="inj" type="number" value="0" /></div>
+          <div><label for="density">Density (kg/m³)</label><input id="density" type="number" value="860" /></div>
+          <div><label for="cetane">Cetane Number</label><input id="cetane" type="number" value="48" step="0.1" /></div>
+          <div><label for="viscosity">Viscosity (cSt)</label><input id="viscosity" type="number" value="3.5" step="0.1" /></div>
+          <div><label for="lhv">Lower Heating Value (kJ/kg)</label><input id="lhv" type="number" value="42000" /></div>
+          <div><label for="oxygen">Oxygen Content (% by mass)</label><input id="oxygen" type="number" value="10.8" step="0.1" /></div>
+          <div><label for="pourPoint">Pour Point (°C)</label><input id="pourPoint" type="number" value="-3" /></div>
         </div>
 
+        </div>
         <div class="row" style="margin-top:12px">
           <button class="btn" id="addBtn">Add to Graph</button>
           <button class="btn secondary" id="calcBtn">Calculate (show single)</button>
@@ -146,58 +135,80 @@
 
 <script>
 (() => {
-  // LHV values (kJ/kg) — approximate; you may refine them
+  // Approximate LHV values for each blend (kJ/kg)
   const blendLHV = {0:42500,5:42350,10:42000,15:41750,20:41500,30:41000};
 
-  // storage arrays
-  const rows = [];
+  const rows = []; // Data storage for table + chart
 
   // Chart setup
   const ctx = document.getElementById('effChart').getContext('2d');
-  const chartData = { labels: [], datasets: [
-    { label: 'Brake Thermal Efficiency (%)', data: [], backgroundColor: '#6D5D6E' },
-    { label: 'Exergy Efficiency (%)', data: [], backgroundColor: '#4F4557' }
-  ]};
-  const chartOptions = { responsive:true, scales:{ y:{ beginAtZero:true, max:100 } }, plugins:{ title:{ display:true, text:'Efficiency vs Blend/Run' } } };
-  let effChart = new Chart(ctx, { type:'bar', data: chartData, options: chartOptions });
+  const chartData = { 
+    labels: [], 
+    datasets: [
+      { label: 'Brake Thermal Efficiency (%)', data: [], backgroundColor: '#6D5D6E' },
+      { label: 'Exergy Efficiency (%)', data: [], backgroundColor: '#4F4557' }
+    ]
+  };
+  const chartOptions = { 
+    responsive:true, 
+    scales:{ y:{ beginAtZero:true, max:100 } }, 
+    plugins:{ title:{ display:true, text:'Efficiency vs Blend/Run' } } 
+  };
+  const effChart = new Chart(ctx, { type:'bar', data: chartData, options: chartOptions });
 
-  // helper functions
+  // Main metric calculations
   function calcMetrics({blend, rpm, torque, mFuel, T_exh, T0}) {
-  if (!rpm || !torque || !mFuel || mFuel <= 0) throw new Error('RPM, torque, and fuel flow must be valid.');
+    if (!rpm || !torque || !mFuel || mFuel <= 0) throw new Error('RPM, torque, and fuel flow must be valid.');
 
-  const LHV = blendLHV[blend] || blendLHV[0]; // kJ/kg
+    const LHV = parseFloat(document.getElementById('lhv').value) || blendLHV[blend] || blendLHV[0];
 
-  // 1. Brake Power (kW)
-  const BP = (2 * Math.PI * rpm * torque) / 60 / 1000; // in kW
+    // 1. Brake Power (kW)
+    const BP = (2 * Math.PI * rpm * torque) / 60 / 1000;
 
-  // 2. Fuel Energy Input (kW)
-  const E_f = (mFuel * LHV) / 1000;
+    // 2. Fuel Energy Input (kW)
+    const E_f = (mFuel * LHV) / 1000;
 
-  // 3. Brake Thermal Efficiency (%)
-  const BTE = (BP / (E_f * 10000)) * 100;
+    // 3. Brake Thermal Efficiency (%)
+    const BTE = (BP / (E_f*10000)) * 100;
 
-  // 4. Chemical Exergy Input (kW) ~1.04 × LHV
-  const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
+    // 4. Chemical Exergy Input (kW)
+    const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
 
-  // 5. Exergy Efficiency (%)
-  const Ex_eff = (BP / (Ex_fuel*10000)) * 100;
+    // 5. Exergy Efficiency (%)
+    const Ex_eff = (BP / (Ex_fuel*10000)) * 100;
 
-  // 6. BSFC
-  const BSFC_kg_per_kWh = BP > 0 ? (mFuel / BP) * 3600 : Infinity;
-  const BSFC_g_per_kWh = BSFC_kg_per_kWh * 1000;
+    // 6. BSFC (g/kWh)
+    const BSFC_g_per_kWh = BP > 0 ? (mFuel / BP) * 3600 * 1000 : Infinity;
 
-  return { BP, E_f, BTE, Ex_fuel, Ex_eff, BSFC_g_per_kWh };
-}
+    // 7. Exergy Loss (kW)
+    const Ex_loss = Ex_fuel - (BP / 1000);
 
+    // 8. Emission Estimates (approximate)
+    const NOx = 4.5 * (Ex_eff / 100);  // g/kWh (rough trend)
+    const CO = 1.8 * (100 - BTE) / 100;
+    const CO2 = BP > 0 ? (mFuel * 44 / 12) * 3600 : 0; // g/kWh estimate
 
-  function addRowToTable(index, blend, rpm, torque, mFuel, BTE, Ex_eff, BSFC_g) {
+    return { BP, E_f, BTE, Ex_fuel, Ex_eff, Ex_loss, BSFC_g_per_kWh, NOx, CO, CO2 };
+  }
+
+  // Add a new row to table
+  function addRowToTable(index, blend, rpm, torque, mFuel, metrics) {
     const tbody = document.querySelector('#dataTable tbody');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${index}</td><td>B${blend}</td><td>${rpm}</td><td>${torque}</td><td>${mFuel.toExponential(3)}</td>
-                    <td>${BTE.toFixed(2)}</td><td>${Ex_eff.toFixed(2)}</td><td>${(BSFC_g===Infinity)?'—':BSFC_g.toFixed(0)}</td>`;
+    tr.innerHTML = `
+      <td>${index}</td>
+      <td>B${blend}</td>
+      <td>${rpm}</td>
+      <td>${torque}</td>
+      <td>${mFuel.toExponential(3)}</td>
+      <td>${metrics.BTE.toFixed(2)}</td>
+      <td>${metrics.Ex_eff.toFixed(2)}</td>
+      <td>${isFinite(metrics.BSFC_g_per_kWh)?metrics.BSFC_g_per_kWh.toFixed(0):'—'}</td>
+    `;
     tbody.appendChild(tr);
   }
 
+  // Update chart data
   function updateChart() {
     chartData.labels = rows.map((r,i)=>`#${i+1} B${r.blend}`);
     chartData.datasets[0].data = rows.map(r=>r.metrics.BTE);
@@ -215,7 +226,7 @@
   const usernameEl = document.getElementById('username');
   const singleResult = document.getElementById('singleResult');
 
-  // buttons
+  // Add to graph
   document.getElementById('addBtn').addEventListener('click', () => {
     try {
       const data = {
@@ -228,14 +239,13 @@
       };
       const metrics = calcMetrics(data);
       rows.push({ ...data, metrics });
-      addRowToTable(rows.length, data.blend, data.rpm, data.torque, data.mFuel, metrics.BTE, metrics.Ex_eff, metrics.BSFC_g_per_kWh);
+      addRowToTable(rows.length, data.blend, data.rpm, data.torque, data.mFuel, metrics);
       updateChart();
-      singleResult.innerHTML = `<b>Added:</b> B${data.blend} — BTE ${metrics.BTE.toFixed(2)}% • Exergy ${metrics.Ex_eff.toFixed(2)}% • BSFC ${isFinite(metrics.BSFC_g_per_kWh)?metrics.BSFC_g_per_kWh.toFixed(0)+' g/kWh':'—'}`;
-    } catch (e) {
-      alert('Error: ' + e.message);
-    }
+      singleResult.innerHTML = `<b>Added:</b> B${data.blend} — BP ${metrics.BP.toFixed(2)} kW • BTE ${metrics.BTE.toFixed(2)}% • Exergy ${metrics.Ex_eff.toFixed(2)}% • Exergy Loss ${metrics.Ex_loss.toFixed(2)} kW • BSFC ${metrics.BSFC_g_per_kWh.toFixed(0)} g/kWh • NOx ${metrics.NOx.toFixed(2)} g/kWh`;
+    } catch (e) { alert('Error: ' + e.message); }
   });
 
+  // Single calc
   document.getElementById('calcBtn').addEventListener('click', () => {
     try {
       const data = {
@@ -247,103 +257,57 @@
         T0: parseFloat(t0El.value)
       };
       const metrics = calcMetrics(data);
-      singleResult.innerHTML = `<b>Single calc:</b> B${data.blend} — Brake Power ${metrics.BP.toFixed(3)} kW • BTE ${metrics.BTE.toFixed(2)}% • Exergy ${metrics.Ex_eff.toFixed(2)}% • BSFC ${isFinite(metrics.BSFC_g_per_kWh)?metrics.BSFC_g_per_kWh.toFixed(0)+' g/kWh':'—'}`;
-    } catch (e) {
-      alert('Error: ' + e.message);
-    }
+      singleResult.innerHTML = `<b>Single calc:</b> B${data.blend} — Brake Power ${metrics.BP.toFixed(3)} kW • BTE ${metrics.BTE.toFixed(2)}% • Exergy ${metrics.Ex_eff.toFixed(2)}% • Exergy Loss ${metrics.Ex_loss.toFixed(2)} kW • BSFC ${metrics.BSFC_g_per_kWh.toFixed(0)} g/kWh • NOx ${metrics.NOx.toFixed(2)} g/kWh`;
+    } catch (e) { alert('Error: ' + e.message); }
   });
 
+  // Clear chart/table
   document.getElementById('clearBtn').addEventListener('click', () => {
     rows.length = 0;
-    const tbody = document.querySelector('#dataTable tbody');
-    tbody.innerHTML = '';
+    document.querySelector('#dataTable tbody').innerHTML = '';
     updateChart();
     singleResult.innerHTML = 'Graph cleared.';
   });
 
-  // dark mode toggle
+  // Dark mode toggle
   document.getElementById('darkToggle').addEventListener('click', () => {
     document.body.classList.toggle('dark');
   });
 
   // PDF download
   document.getElementById('downloadBtn').addEventListener('click', async () => {
-    if (rows.length === 0) { alert('Add at least one run to the graph before downloading PDF.'); return; }
+    if (rows.length === 0) { alert('Add at least one run before downloading PDF.'); return; }
     const username = usernameEl.value.trim() || 'Anonymous';
+    let chartImageData = effChart.toBase64Image();
 
-    // Capture chart as image using chart.toBase64Image (preferred) or html2canvas as fallback
-    let chartImageData;
-    try {
-      chartImageData = effChart.toBase64Image();
-    } catch (err) {
-      // fallback capture
-      const canvas = document.querySelector('#effChart');
-      chartImageData = canvas.toDataURL('image/png', 1.0);
-    }
-
-    // Use jsPDF to create PDF
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
     const margin = 40;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Title
     doc.setFontSize(18);
     doc.text('Biodiesel Engine Exergy Report', pageWidth / 2, margin + 10, { align: 'center' });
     doc.setFontSize(10);
-    const dateStr = new Date().toLocaleString();
     doc.text(`Prepared by: ${username}`, margin, margin + 40);
-    doc.text(`Date: ${dateStr}`, margin, margin + 55);
+    doc.text(`Date: ${new Date().toLocaleString()}`, margin, margin + 55);
 
-    // Add chart
     const chartW = pageWidth - margin * 2;
-    const chartH = 220;
-    doc.addImage(chartImageData, 'PNG', margin, margin + 70, chartW, chartH);
+    doc.addImage(chartImageData, 'PNG', margin, margin + 70, chartW, 220);
 
-    // Add table header
     doc.setFontSize(11);
-    const startY = margin + 70 + chartH + 20;
-    doc.text('Summary of runs (per added row):', margin, startY);
-
-    // Build table rows text (limited per page)
-    const colX = [margin, margin + 40, margin + 110, margin + 190, margin + 270, margin + 340, margin + 420, margin + 500];
+    const startY = margin + 320;
+    doc.text('Summary of Runs:', margin, startY);
+    let y = startY + 15;
     doc.setFontSize(9);
-    // header row
-    const headerY = startY + 12;
-    doc.text('#', colX[0], headerY);
-    doc.text('Blend', colX[1], headerY);
-    doc.text('RPM', colX[2], headerY);
-    doc.text('Torque', colX[3], headerY);
-    doc.text('Fuel(kg/s)', colX[4], headerY);
-    doc.text('BTE %', colX[5], headerY);
-    doc.text('Exergy %', colX[6], headerY);
-    doc.text('BSFC g/kWh', colX[7], headerY);
-
-    // rows
-    let y = headerY + 12;
-    const maxPerPage = 20;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (i > 0 && i % maxPerPage === 0) {
-        doc.addPage();
-        y = 60;
-      }
-      doc.text(String(i+1), colX[0], y);
-      doc.text(`B${r.blend}`, colX[1], y);
-      doc.text(String(r.rpm), colX[2], y);
-      doc.text(String(r.torque), colX[3], y);
-      doc.text(r.mFuel.toExponential(3), colX[4], y);
-      doc.text(r.metrics.BTE.toFixed(2), colX[5], y);
-      doc.text(r.metrics.Ex_eff.toFixed(2), colX[6], y);
-      doc.text(isFinite(r.metrics.BSFC_g_per_kWh)?r.metrics.BSFC_g_per_kWh.toFixed(0):'—', colX[7], y);
+    rows.forEach((r, i) => {
+      doc.text(`#${i+1} B${r.blend} | BP ${r.metrics.BP.toFixed(2)} kW | BTE ${r.metrics.BTE.toFixed(2)}% | Exergy ${r.metrics.Ex_eff.toFixed(2)}% | BSFC ${r.metrics.BSFC_g_per_kWh.toFixed(0)} g/kWh | Exergy Loss ${r.metrics.Ex_loss.toFixed(2)} kW | NOx ${r.metrics.NOx.toFixed(2)} g/kWh`, margin, y);
       y += 12;
-    }
+      if (y > 760) { doc.addPage(); y = 60; }
+    });
 
-    // Footer note
     doc.setFontSize(8);
-    doc.text('Notes: Chemical exergy approximated as 1.04 × LHV. BSFC = (m_fuel / BP) × 3600 (kg/kWh).', margin, doc.internal.pageSize.getHeight() - 40);
+    doc.text('Notes: Exergy ≈ 1.04×LHV; BSFC = (m_fuel/BP)*3600; Emissions are approximate trends.', margin, doc.internal.pageSize.getHeight() - 40);
 
-    // Save PDF
     doc.save(`Exergy_Report_${username.replace(/\s+/g,'_')}.pdf`);
   });
 
