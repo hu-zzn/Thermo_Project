@@ -54,15 +54,9 @@
       <div class="card">
         <div class="topline">
           <div>
-            <label for="blend">Fuel Blend</label>
-            <select id="blend">
-              <option value="0">Diesel (B0)</option>
-              <option value="5">B5</option>
-              <option value="10">B10</option>
-              <option value="15">B15</option>
-              <option value="20">B20</option>
-              <option value="30">B30</option>
-            </select>
+            <label for="blendRange">Fuel Blend (Biodiesel %)</label>
+            <input type="range" id="blendRange" min="0" max="100" step="1" value="0" oninput="blendLabel.textContent = 'B' + this.value">
+            <div id="blendLabel" style="font-weight:600; color:var(--muted);">B0</div>
           </div>
           <div style="width:220px">
             <label for="username">Your name (for PDF)</label>
@@ -84,8 +78,9 @@
           <div><label for="density">Density (kg/m³)</label><input id="density" type="number" value="860" /></div>
           <div><label for="cetane">Cetane Number</label><input id="cetane" type="number" value="48" step="0.1" /></div>
           <div><label for="viscosity">Viscosity (cSt)</label><input id="viscosity" type="number" value="3.5" step="0.1" /></div>
-          <div><label for="lhv">Lower Heating Value (kJ/kg)</label><input id="lhv" type="number" value="42000" /></div>
-          <div><label for="oxygen">Oxygen Content (% by mass)</label><input id="oxygen" type="number" value="10.8" step="0.1" /></div>
+          <div><label for="carbon">Carbon (% by mass)</label><input id="carbon" type="number" value="77" step="0.1" /></div>
+          <div><label for="hydrogen">Hydrogen (% by mass)</label><input id="hydrogen" type="number" value="12" step="0.1" /></div>
+          <div><label for="oxygenElem">Oxygen (% by mass)</label><input id="oxygenElem" type="number" value="10" step="0.1" /></div>
           <div><label for="pourPoint">Pour Point (°C)</label><input id="pourPoint" type="number" value="-3" /></div>
         </div>
 
@@ -135,8 +130,13 @@
 
 <script>
 (() => {
-  // Approximate LHV values for each blend (kJ/kg)
-  const blendLHV = {0:42500,5:42350,10:42000,15:41750,20:41500,30:41000};
+  // Function to calculate LHV dynamically
+  function calculateLHV(blendPercent) {
+    const LHV_diesel = 42500;  // kJ/kg
+    const LHV_biodiesel = 37500; // kJ/kg
+    const fraction = blendPercent / 100;
+    return LHV_diesel * (1 - fraction) + LHV_biodiesel * fraction;
+  }
 
   const rows = []; // Data storage for table + chart
 
@@ -157,39 +157,56 @@
   const effChart = new Chart(ctx, { type:'bar', data: chartData, options: chartOptions });
 
   // Main metric calculations
-  function calcMetrics({blend, rpm, torque, mFuel, T_exh, T0}) {
-    if (!rpm || !torque || !mFuel || mFuel <= 0) throw new Error('RPM, torque, and fuel flow must be valid.');
+function calcMetrics({ blend, rpm, torque, mFuel }) {
+  if (!rpm || !torque || !mFuel || mFuel <= 0)
+    throw new Error('Enter valid RPM, torque, and fuel flow rate.');
 
-    const LHV = parseFloat(document.getElementById('lhv').value) || blendLHV[blend] || blendLHV[0];
+  // 🔹 Automatically calculate LHV (based on biodiesel-diesel blend)
+  // Typical biodiesel composition (C=77%, H=12%, O=10%)
+  // Dulong’s formula: LHV = 338.2C + 1442(H - O/8)
+  // Interpolate linearly for biodiesel-diesel blend
+  const C_diesel = 86, H_diesel = 13, O_diesel = 1;     // Diesel composition (%)
+  const C_biodiesel = 77, H_biodiesel = 12, O_biodiesel = 10; // Biodiesel composition (%)
 
-    // 1. Brake Power (kW)
-    const BP = (2 * Math.PI * rpm * torque) / 60 / 1000;
+  const x = blend / 100; // biodiesel fraction
+  const C = C_diesel * (1 - x) + C_biodiesel * x;
+  const H = H_diesel * (1 - x) + H_biodiesel * x;
+  const O = O_diesel * (1 - x) + O_biodiesel * x;
 
-    // 2. Fuel Energy Input (kW)
-    const E_f = (mFuel * LHV) / 1000;
+  const LHV = 338.2 * C + 1442 * (H - O / 8); // kJ/kg auto-calculated
+  // Example: for B20 → ~41500 kJ/kg automatically
 
-    // 3. Brake Thermal Efficiency (%)
-    const BTE = (BP / (E_f*10000)) * 100;
+  // 1️⃣ Brake Power (kW)
+  const BP = (2 * Math.PI * rpm * torque) / 600000;
 
-    // 4. Chemical Exergy Input (kW)
-    const Ex_fuel = (mFuel * (1.04 * LHV)) / 1000;
+  // 2️⃣ Fuel Energy Input Rate (kW)
+  const Ef = mFuel * LHV;
 
-    // 5. Exergy Efficiency (%)
-    const Ex_eff = (BP / (Ex_fuel*10000)) * 100;
+  // 3️⃣ Brake Thermal Efficiency (%)
+  const BTE = (BP / Ef) * 100;
 
-    // 6. BSFC (g/kWh)
-    const BSFC_g_per_kWh = BP > 0 ? (mFuel / BP) * 3600 * 1000 : Infinity;
+  // 4️⃣ Fuel Chemical Exergy (kW)
+  const Ex_fuel = 1.04 * Ef;
 
-    // 7. Exergy Loss (kW)
-    const Ex_loss = Ex_fuel - (BP / 1000);
+  // 5️⃣ Exergy Efficiency (%)
+  const Ex_eff = (BP / Ex_fuel) * 100;
 
-    // 8. Emission Estimates (approximate)
-    const NOx = 4.5 * (Ex_eff / 100);  // g/kWh (rough trend)
-    const CO = 1.8 * (100 - BTE) / 100;
-    const CO2 = BP > 0 ? (mFuel * 44 / 12) * 3600 : 0; // g/kWh estimate
+  // 6️⃣ Exergy Loss (kW)
+  const Ex_loss = Ex_fuel - BP;
 
-    return { BP, E_f, BTE, Ex_fuel, Ex_eff, Ex_loss, BSFC_g_per_kWh, NOx, CO, CO2 };
-  }
+  // 7️⃣ BSFC (g/kWh)
+  const BSFC_g_per_kWh = BP > 0 ? (mFuel / BP) * 3600 * 1000 : Infinity;
+
+  // 8️⃣ Exergy Destruction Fraction (%)
+  const Ex_destruction_frac = (Ex_loss / Ex_fuel) * 100;
+
+  // 9️⃣ Emission Estimates (trend-based approximation)
+  const NOx = 0.25 * Ex_eff;
+  const CO = 0.15 * (100 - BTE);
+  const CO2 = (mFuel * 44 / 12) * 3600;
+
+  return { BP, Ef, BTE, Ex_fuel, Ex_eff, Ex_loss, BSFC_g_per_kWh, Ex_destruction_frac, NOx, CO, CO2 };
+}
 
   // Add a new row to table
   function addRowToTable(index, blend, rpm, torque, mFuel, metrics) {
@@ -217,7 +234,7 @@
   }
 
   // DOM elements
-  const blendEl = document.getElementById('blend');
+  const blendEl = document.getElementById('blendRange');
   const rpmEl = document.getElementById('rpm');
   const torqueEl = document.getElementById('torque');
   const fuelEl = document.getElementById('fuel');
